@@ -36,15 +36,11 @@ void LCD::cursorAt(uint8_t row, uint8_t col)
 
 void LCD::draw()
 {
-    if (changed)
+    /*f (changed)
     {
         Serial.println("changed. drawing");
         Serial.println(buffer[0]);
         Serial.println(buffer[1]);
-    }
-}
-
-void LCD::init()
-{
-    changed = false;
+        changed = false;
+    }*/
 }

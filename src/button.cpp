@@ -8,6 +8,7 @@ void Button::update()
 {
     press = None;
     bounce.update();
+    auto current = millis();
     if (bounce.fell())
     {
         fallen = true;
@@ -17,16 +18,22 @@ void Button::update()
     {
         if (fallen)
         {
-            if (millis() - fellTime > 1000)
-            {
-                press = Long;
-            }
-            else
-            {
-                press = Short;
-            }
+            roseTime = current;
+            fallen = false;
         }
-        fallen = false;
+    }
+
+    if (roseTime != 0 && current - roseTime > 5)
+    {
+        if (roseTime - fellTime > 1000)
+        {
+            press = Long;
+        }
+        else
+        {
+            press = Short;
+        }
+        roseTime = 0;
     }
 }
 bool Button::pressed()
@@ -51,4 +58,10 @@ bool Button::down()
 bool Button::up()
 {
     return bounce.rose();
+}
+
+void Button::reset()
+{
+    roseTime = 0;
+    fallen = false;
 }

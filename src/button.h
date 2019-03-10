@@ -18,6 +18,7 @@ class Button
     unsigned long fellTime;
     bool fallen;
     Press press;
+    unsigned long roseTime;
 
   public:
     Button(uint8_t pin);
@@ -27,5 +28,6 @@ class Button
     bool read();
     bool down();
     bool up();
+    void reset();
 };
 #endif

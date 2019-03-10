@@ -15,5 +15,4 @@ public:
     void print(const char* fmt, ...);
     void cursorAt(uint8_t row, uint8_t col);
     void draw();
-    void init();
 };

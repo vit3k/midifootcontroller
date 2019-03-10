@@ -16,16 +16,22 @@ void MultiButton::update()
         if (down == 2)
         {
             press = Short;
+            button1->reset();
+            button2->reset();
         }
-        down--;
+        down = 0;
+
     }
     if (button2->up())
     {
         if (down == 2)
         {
             press = Short;
+            button1->reset();
+
+            button2->reset();
         }
-        down--;
+        down = 0;
     }
 }
 
