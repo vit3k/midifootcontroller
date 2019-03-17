@@ -6,9 +6,32 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: #212121;
+  color: white;
+  font-size: 16px;
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
     monospace;
+}
+
+table {
+  margin-left: auto;
+  margin-right: auto;
+}
+table td {
+  padding: 5px;
+  text-align: center;
+}
+
+input
+{
+  padding: 2px;
+}
+
+button
+{
+  padding: 3px;
+
 }

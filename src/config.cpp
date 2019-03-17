@@ -16,15 +16,18 @@ void Config::read()
         {
             memset(bank.switches[j].name, 0, 6);
             sprintf(bank.switches[j].name, "t%d %d", i+1, j+1);
+            bank.switches[j].msgs[0].options = 0b00011110;
             bank.switches[j].msgs[0].status = (1 << 4) | (i & 0x0F);
             bank.switches[j].msgs[0].data1 = j;
             bank.switches[j].msgs[0].data2 = 0;
-            //memset(&bank + 6 + 3, 0, 4 * 3);
+            bank.switches[j].msgs[0].altData2 = 0;
             for (auto k = 1; k < 5; k++)
             {
+                bank.switches[j].msgs[k].options = 0b00011110;
                 bank.switches[j].msgs[k].status = 0;
                 bank.switches[j].msgs[k].data1 = 0;
                 bank.switches[j].msgs[k].data2 = 0;
+                bank.switches[j].msgs[k].altData2 = 0;
             }
         }
         EEPROM.put(1 + i * sizeof(Bank), bank);
@@ -63,9 +66,15 @@ void Config::readBank(uint8_t bankNo)
     EEPROM.get(1 + bankNo * sizeof(Bank), bank);
 }
 
+void Config::saveSwitch(Switch sw)
+{
+    EEPROM.put(1 + currentBank * sizeof(Bank) + currentSwitch * sizeof(Switch), sw);
+    bank.switches[currentSwitch] = sw;
+}
+
 midi::MidiType Msg::getCmd()
 {
-    uint8_t cmd = (status & 0xF0) >> 4;
+    uint8_t cmd = (status & 0x70) >> 4;
     switch(cmd)
     {
         case 1:
@@ -81,4 +90,30 @@ midi::MidiType Msg::getCmd()
 uint8_t Msg::getChannel()
 {
     return status & 0x0F;
+}
+
+bool Msg::isToggle()
+{
+    return (options & 0b00000001) != 0;
+}
+
+bool Msg::sendMidi()
+{
+    return (options & 0b00000010) != 0;
+}
+bool Msg::sendUsb1()
+{
+    return (options & 0b00000100) != 0;
+}
+bool Msg::sendUsb2()
+{
+    return (options & 0b00001000) != 0;
+}
+bool Msg::sendPc()
+{
+    return (options & 0b00010000) != 0;
+}
+uint8_t Msg::getStatus()
+{
+    return getCmd() | getChannel();
 }

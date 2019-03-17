@@ -1,10 +1,35 @@
 #include <Arduino.h>
 #include <MIDI.h>
 #include "lcd.h"
+#include <usbh_midi.h>
+#include <usbhub.h>
 
 #include "button.h"
 #include "config.h"
 #include "multiButton.h"
+
+USB usb;
+USBHub hub(&usb);
+
+class USBH_MIDI_ext : public USBH_MIDI {
+public:
+    byte port = -1;
+    byte Init(byte parent, byte port, bool lowspeed);
+    USBH_MIDI_ext(USB* usb): USBH_MIDI(usb) {};
+    virtual ~USBH_MIDI_ext() {}
+    bool isActive() { return GetAddress() != 0; }
+};
+
+byte USBH_MIDI_ext::Init(byte parent, byte port, bool lowspeed)
+{
+    auto rcode = USBH_MIDI::Init(parent, port, lowspeed);
+    if (rcode == 0) {
+        this->port = port;
+    }
+    return rcode;
+}
+USBH_MIDI_ext usbMidi1(&usb);
+USBH_MIDI_ext usbMidi2(&usb);
 
 struct MidiSettings : public midi::DefaultSettings
 {
@@ -26,7 +51,7 @@ enum State
 State currentState = Run;
 uint8_t currentSwitchEdit = 0;
 Config config;
-
+bool editMode = false;
 void drawRun()
 {
     auto bank = config.current();
@@ -34,7 +59,6 @@ void drawRun()
     {
         for (auto btnIdx = 0; btnIdx < 3; btnIdx++)
         {
-            //Serial.println(bank->switches[row * 3 + btnIdx].name);
             lcd.cursorAt(row, btnIdx * 6);
             lcd.print(bank->switches[row * 3 + btnIdx].name);
         }
@@ -61,6 +85,10 @@ void sendBank(Bank* bank)
 }
 void sendSwitch(Switch* sw)
 {
+    if (!editMode)
+    {
+        return;
+    }
     byte* msg = new byte[3+ sizeof(Switch)];
     msg[0] = 0x01;
     msg[1] = config.currentBank;
@@ -68,6 +96,12 @@ void sendSwitch(Switch* sw)
     memcpy(msg + 3, (uint8_t*)sw, sizeof(Switch));
     sendSysex(msg, 3 + sizeof(Switch));
     delete msg;
+}
+void saveSwitch(byte* data)
+{
+    Switch sw;
+    memcpy(&sw, data, sizeof(Switch));
+    config.saveSwitch(sw);
 }
 void onSysex(byte* data, unsigned int size)
 {
@@ -79,17 +113,25 @@ void onSysex(byte* data, unsigned int size)
     {
         return;
     }
+    editMode = true;
     switch(data[4])
     {
         case 0x01:
             sendSwitch(&(config.current()->switches[config.currentSwitch]));
             break;
+        case 0x02:
+            saveSwitch(data+5);
+            break;
     }
 }
 void setup()
 {
+    if (usb.Init() == -1) {
+        while (1);
+    }
+    delay( 200 );
     MIDI.setHandleSystemExclusive(onSysex);
-    MIDI.turnThruOn();
+    MIDI.turnThruOff();
     MIDI.begin(MIDI_CHANNEL_OMNI);
     Serial.begin(115200);
     lcd.begin();
@@ -98,7 +140,20 @@ void setup()
     lcd.draw();
 }
 
-
+void sendUsbMidi(byte port, uint8_t msg[3])
+{
+    if (usb.getUsbTaskState() == USB_STATE_RUNNING)
+    {
+        if (usbMidi1.port == port && usbMidi1.isActive())
+        {
+            usbMidi1.SendData(msg);
+        }
+        if (usbMidi2.port == port && usbMidi2.isActive())
+        {
+            usbMidi2.SendData(msg);
+        }
+    }
+}
 void run()
 {
     auto bank = config.current();
@@ -110,18 +165,29 @@ void run()
             auto msgs = bank->switches[btnIdx].msgs;
             for (auto msgIdx = 0; msgIdx < 3; msgIdx++)
             {
-                MIDI.send(msgs[msgIdx].getCmd(), msgs[msgIdx].data1, msgs[msgIdx].data2, msgs[msgIdx].getChannel());
+                if (msgs[msgIdx].sendMidi())
+                {
+                    MIDI.send(msgs[msgIdx].getCmd(), msgs[msgIdx].data1, msgs[msgIdx].data2, msgs[msgIdx].getChannel() + 1);
+                }
+                if (msgs[msgIdx].sendUsb1())
+                {
+                    uint8_t msg[3] = {msgs[msgIdx].getStatus(), msgs[msgIdx].data1, msgs[msgIdx].data2};
+                    sendUsbMidi(0, msg);
+                }
+                if (msgs[msgIdx].sendUsb2())
+                {
+                    uint8_t msg[3] = {msgs[msgIdx].getStatus(), msgs[msgIdx].data1, msgs[msgIdx].data2};
+                    sendUsbMidi(1, msg);
+                }
             }
-            //byte msg[2] = {0x00, btnIdx};
-            //sendSysex(msg, 2);
             config.currentSwitch = btnIdx;
             sendSwitch(&(bank->switches[btnIdx]));
         }
-        if (buttons[btnIdx].longpressed())
+        /*if (buttons[btnIdx].longpressed())
         {
             currentSwitchEdit = btnIdx;
             currentState = Edit;
-        }
+        }*/
     }
 }
 
@@ -146,22 +212,20 @@ void updateButtons()
 
 void loop()
 {
-
+    usb.Task();
     updateButtons();
 
     if (bankUpButton.pressed())
     {
-        //Serial.println("bank up");
         config.nextBank();
         drawRun();
-        //sendBank(bank);
         sendSwitch(&(config.current()->switches[config.currentSwitch]));
     }
     else if (bankDownButton.pressed())
     {
-        //Serial.println("bank down");
         config.prevBank();
         drawRun();
+        sendSwitch(&(config.current()->switches[config.currentSwitch]));
     }
     else if (currentState == Run)
     {

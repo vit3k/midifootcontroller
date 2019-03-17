@@ -4,15 +4,23 @@
 #include <Arduino.h>
 #include <MIDI.h>
 
-#define BANKSNUM 5
+#define BANKSNUM 3
 
 struct Msg
 {
     uint8_t status;
     uint8_t data1;
     uint8_t data2;
+    uint8_t altData2;
+    uint8_t options;
     midi::MidiType getCmd();
     uint8_t getChannel();
+    bool isToggle();
+    bool sendMidi();
+    bool sendUsb1();
+    bool sendUsb2();
+    bool sendPc();
+    uint8_t getStatus();
 };
 
 struct Switch
@@ -39,5 +47,6 @@ class Config
     void nextBank();
     void prevBank();
     void readBank(uint8_t bankNo);
+    void saveSwitch(Switch sw);
 };
 #endif
