@@ -148,7 +148,6 @@ class App extends Component {
             return <option key={idx} value={idx}>{item.name}</option>
           })}
         </select>
-        <button onClick={this.get}>Load from device</button>
         </div>
         <div style={{fontSize: '3em', fontWeight: 'bold', textAlign: 'center'}}>
           {this.state.currentBank}{this.state.currentPatch.idx + 1}
@@ -195,9 +194,10 @@ class App extends Component {
           </table>
           <div>
             <button onClick={this.save}>Save</button>
+            <button onClick={this.get}>Reload</button>
           </div>
         </div>
-        : <div style={{textAlign: 'center', marginTop: 10}}>No data loaded from device</div>}
+        : <div style={{textAlign: 'center', marginTop: 10}}>No data available. Choose proper MIDI devices and click below button<br/><button onClick={this.get}>Load from device</button></div>}
       </div>
     );
   }
