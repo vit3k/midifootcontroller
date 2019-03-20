@@ -13,7 +13,6 @@ void LCD::print(const char* fmt, ...)
     va_list args;
     va_start(args, fmt);
     auto len = vsprintf(&buffer[row][col], fmt, args);
-    //Serial.println(len);
     if (col + len < 20)
     {
         buffer[row][col+len] = ' ';
@@ -22,8 +21,6 @@ void LCD::print(const char* fmt, ...)
     {
         buffer[row][col+len] = '\0';
     }
-    //Serial.println(buffer[row]);
-
     va_end(args);
 }
 

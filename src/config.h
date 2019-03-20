@@ -27,6 +27,7 @@ struct Switch
 {
     char name[6];
     Msg msgs[5];
+    uint8_t loops;
 };
 
 struct Bank
@@ -37,16 +38,14 @@ struct Bank
 class Config
 {
   public:
-    //Bank banks[BANKSNUM];
     Bank bank;
     uint8_t currentBank = 0;
     uint8_t currentSwitch = 0;
-    void saveBank();
     void read();
     Bank *current();
     void nextBank();
     void prevBank();
     void readBank(uint8_t bankNo);
-    void saveSwitch(Switch sw);
+    void saveSwitch(byte* data);
 };
 #endif

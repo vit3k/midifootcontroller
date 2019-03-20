@@ -2,14 +2,10 @@
 #include <EEPROM.h>
 #include "MIDI.h"
 
-void Config::saveBank()
-{
-    EEPROM.put(1 + currentBank * sizeof(Bank), &bank);
-}
 void Config::read()
 {
     currentBank = EEPROM.read(0);
-    /*for(auto i = 0; i < BANKSNUM; i++)
+    for(auto i = 0; i < BANKSNUM; i++)
     {
         Bank bank;
         for (auto j = 0; j < 6; j++)
@@ -29,16 +25,14 @@ void Config::read()
                 bank.switches[j].msgs[k].data2 = 0;
                 bank.switches[j].msgs[k].altData2 = 0;
             }
+            bank.switches[j].loops = 0;
         }
         EEPROM.put(1 + i * sizeof(Bank), bank);
-    }*/
-
-    //EEPROM.get(1, banks);
+    }
     readBank(currentBank);
 }
 Bank *Config::current()
 {
-    //return &banks[currentBank];
     return &bank;
 }
 void Config::nextBank()
@@ -66,8 +60,10 @@ void Config::readBank(uint8_t bankNo)
     EEPROM.get(1 + bankNo * sizeof(Bank), bank);
 }
 
-void Config::saveSwitch(Switch sw)
+void Config::saveSwitch(byte* data)
 {
+    Switch sw;
+    memcpy(&sw, data, sizeof(Switch));
     EEPROM.put(1 + currentBank * sizeof(Bank) + currentSwitch * sizeof(Switch), sw);
     bank.switches[currentSwitch] = sw;
 }
