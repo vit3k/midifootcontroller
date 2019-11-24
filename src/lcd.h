@@ -10,9 +10,13 @@ private:
     uint8_t row, col;
     bool changed = false;
 public:
-    LCD(): lcd(8, 9, 10, 11, 12, 13) {}
+    LCD(): lcd(5, 18, 19, 21, 22, 23) {}
     void begin();
     void print(const char* fmt, ...);
     void cursorAt(uint8_t row, uint8_t col);
     void draw();
+    void cursor(uint8_t row, uint8_t col);
+    void noCursor();
+    void blink();
+    void noBlink();
 };

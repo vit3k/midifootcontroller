@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <MIDI.h>
+#include <Preferences.h>
 
 #define BANKSNUM 3
 
@@ -16,10 +17,10 @@ struct Msg
     midi::MidiType getCmd();
     uint8_t getChannel();
     bool isToggle();
-    bool sendMidi();
-    bool sendUsb1();
-    bool sendUsb2();
-    bool sendPc();
+    // bool sendMidi();
+    // bool sendUsb1();
+    //bool sendUsb2();
+    //bool sendPc();
     uint8_t getStatus();
 };
 
@@ -37,6 +38,7 @@ struct Bank
 
 class Config
 {
+    Preferences preferences;
   public:
     Bank bank;
     uint8_t currentBank = 0;

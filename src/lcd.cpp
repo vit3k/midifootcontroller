@@ -5,6 +5,7 @@ void LCD::begin()
     lcd.begin(20, 2);
     memset(&buffer[0], ' ', 20);
     memset(&buffer[1], ' ', 20);
+    lcd.noCursor();
 }
 
 void LCD::print(const char* fmt, ...)
@@ -33,11 +34,33 @@ void LCD::cursorAt(uint8_t row, uint8_t col)
 
 void LCD::draw()
 {
-    /*f (changed)
+    if (changed)
     {
-        Serial.println("changed. drawing");
-        Serial.println(buffer[0]);
-        Serial.println(buffer[1]);
+        // Serial.println("changed. drawing");
+        // Serial.println(buffer[0]);
+        // Serial.println(buffer[1]);
+        lcd.setCursor(0, 0);
+        lcd.println(buffer[0]);
+        lcd.println(buffer[1]);
         changed = false;
-    }*/
+    }
+}
+
+void LCD::cursor(uint8_t row, uint8_t col)
+{
+    lcd.setCursor(row, col);
+    lcd.cursor();
+}
+void LCD::noCursor()
+{
+    lcd.noCursor();
+}
+
+void LCD::blink()
+{
+    lcd.blink();
+}
+void LCD::noBlink()
+{
+    lcd.noBlink();
 }

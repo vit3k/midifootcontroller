@@ -1,18 +1,10 @@
 #include <Arduino.h>
 #include <MIDI.h>
 #include "lcd.h"
-#include <usbh_midi.h>
-#include <usbhub.h>
-
 #include "button.h"
 #include "config.h"
 #include "multiButton.h"
-#include "usbhMidiExt.h"
-
-USB usb;
-USBHub hub(&usb);
-USBH_MIDI_ext usbMidi1(&usb);
-USBH_MIDI_ext usbMidi2(&usb);
+#include "rotaryEncoder.h"
 
 struct MidiSettings : public midi::DefaultSettings
 {
@@ -22,55 +14,57 @@ struct MidiSettings : public midi::DefaultSettings
 MIDI_CREATE_CUSTOM_INSTANCE(HardwareSerial, Serial, MIDI, MidiSettings);
 
 Config config;
-Button buttons[6] = {Button(2), Button(3), Button(4), Button(5), Button(6), Button(7)};
+Button buttons[6] = {Button(6), Button(7), Button(8), Button(15), Button(2), Button(0)};
 MultiButton bankUpButton(&buttons[0], &buttons[1]);
 MultiButton bankDownButton(&buttons[1], &buttons[2]);
+RotaryEncoder encoder1(4, 16);
+//RotaryEncoder encoder2(11, 12);
+Button encoder1button(17);
+//Button encoder2button(13);
+
 LCD lcd;
 bool verbose = false;
+byte editSwitch = -1;
+byte editMsg = 0;
+byte editCurrentPos = 0;
+bool editCurrentActive = false;
+Switch editCurrentSwitch;
 
 void sendSysex(byte* data, uint8_t size);
 void onSysex(byte* data, unsigned int size);
-void sendUsbMidi(byte port, uint8_t msg[3]);
 void sendSwitch(Switch* sw);
 
 void updateButtons();
 void drawRun();
+void drawEdit();
+void draw();
 void run();
+void edit();
 void nextBank();
 void prevBank();
 
 void setup()
 {
-    if (usb.Init() == -1) {
-        while (1);
-    }
-    delay( 200 );
     MIDI.setHandleSystemExclusive(onSysex);
     MIDI.turnThruOff();
     MIDI.begin(MIDI_CHANNEL_OMNI);
     Serial.begin(115200);
     lcd.begin();
     config.read();
-    drawRun();
+    draw();
     lcd.draw();
 }
 
 void loop()
 {
-    usb.Task();
     updateButtons();
-
-    if (bankUpButton.pressed())
+    if (editSwitch == -1)
     {
-        nextBank();
-    }
-    else if (bankDownButton.pressed())
-    {
-        prevBank();
+        run();
     }
     else
     {
-        run();
+        edit();
     }
     lcd.draw();
     MIDI.read();
@@ -88,6 +82,200 @@ void drawRun()
         }
     }
 }
+
+void drawEdit()
+{
+    auto msg = editCurrentSwitch.msgs[editMsg];
+    lcd.cursorAt(0, 0);
+    if (msg.getCmd() == midi::ProgramChange)
+    {
+        lcd.print("PC");
+    }
+    else if (msg.getCmd() == midi::ControlChange)
+    {
+        lcd.print("CC");
+    }
+
+    lcd.cursorAt(0, 3);
+    lcd.print("%2d %3d %3d %3d", msg.getChannel(), msg.data1, msg.data2, msg.altData2);
+    lcd.cursorAt(1, 0);
+    lcd.print("%d/5 %s SV CN", editMsg, editCurrentSwitch.name);
+    switch(editCurrentPos)
+    {
+        case 0:
+            lcd.cursor(0, 0);
+            break;
+        case 1:
+            lcd.cursor(0, 4);
+            break;
+        case 2:
+            lcd.cursor(0, 8);
+            break;
+        case 3:
+            lcd.cursor(0, 12);
+            break;
+        case 4:
+            lcd.cursor(0, 16);
+            break;
+        case 5:
+            lcd.cursor(1, 0);
+            break;
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+        case 10:
+        case 11:
+            lcd.cursor(1, editCurrentPos - 2);
+            break;
+        case 12:
+            lcd.cursor(1, 12);
+            break;
+        case 13:
+            lcd.cursor(1, 15);
+            break;
+    }
+    if (editCurrentActive)
+    {
+        lcd.blink();
+    }
+    else
+    {
+        lcd.noBlink();
+    }
+
+}
+
+void draw()
+{
+    if (editSwitch == -1)
+    {
+        drawRun();
+    }
+    else
+    {
+        drawEdit();
+    }
+}
+void run()
+{
+    if (bankUpButton.pressed())
+    {
+        nextBank();
+    }
+    else if (bankDownButton.pressed())
+    {
+        prevBank();
+    }
+    else
+    {
+        auto bank = config.current();
+        for (byte btnIdx = 0; btnIdx < 6; btnIdx++)
+        {
+            if (buttons[btnIdx].longpressed())
+            {
+                editSwitch = btnIdx;
+                editMsg = 0;
+                editCurrentPos = 0;
+                editCurrentActive = false;
+                memcpy(&editCurrentSwitch, &(bank->switches[btnIdx]), sizeof(Switch));
+                draw();
+            }
+            else if (buttons[btnIdx].pressed())
+            {
+                draw();
+                auto msgs = bank->switches[btnIdx].msgs;
+                for (auto msgIdx = 0; msgIdx < 3; msgIdx++)
+                {
+                    MIDI.send(msgs[msgIdx].getCmd(), msgs[msgIdx].data1, msgs[msgIdx].data2, msgs[msgIdx].getChannel() + 1);
+                }
+                config.currentSwitch = btnIdx;
+                sendSwitch(&(bank->switches[btnIdx]));
+            }
+        }
+    }
+}
+
+void edit()
+{
+    if (encoder1button.pressed())
+    {
+        if (editCurrentPos == 13)
+        {
+            editSwitch = -1;
+            draw();
+            return;
+        }
+        else if (editCurrentPos == 12)
+        {
+            //TODO: save
+            editSwitch = -1;
+            draw();
+            return;
+        }
+        else
+        {
+            editCurrentActive = !editCurrentActive;
+            draw();
+            return;
+        }
+    }
+
+    if (!editCurrentActive)
+    {
+        if (encoder1.delta() > 0)
+        {
+            editCurrentPos++;
+            if (editCurrentPos > 13)
+            {
+                editCurrentPos = 0;
+            }
+            draw();
+        }
+        else if (encoder1.delta() < 0)
+        {
+            editCurrentPos--;
+            if (editCurrentPos < 0)
+            {
+                editCurrentPos = 13;
+            }
+            draw();
+        }
+    }
+    else
+    {
+        if (encoder1.delta() != 0)
+        {
+            //TODO: change value
+            draw();
+        }
+    }
+}
+
+void updateButtons()
+{
+    for (auto btnIdx = 0; btnIdx < 6; btnIdx++)
+    {
+        buttons[btnIdx].update();
+    }
+    bankUpButton.update();
+    bankDownButton.update();
+}
+
+void nextBank()
+{
+    config.nextBank();
+    drawRun();
+    sendSwitch(&(config.current()->switches[config.currentSwitch]));
+}
+
+void prevBank()
+{
+    config.prevBank();
+    drawRun();
+    sendSwitch(&(config.current()->switches[config.currentSwitch]));
+}
+
 void sendSysex(byte* data, uint8_t size)
 {
     byte* msg = new byte[3 + size];
@@ -133,74 +321,4 @@ void onSysex(byte* data, unsigned int size)
             config.saveSwitch(data+5);
             break;
     }
-}
-
-void sendUsbMidi(byte port, uint8_t msg[3])
-{
-    if (usb.getUsbTaskState() == USB_STATE_RUNNING)
-    {
-        if (usbMidi1.port == port && usbMidi1.isActive())
-        {
-            usbMidi1.SendData(msg);
-        }
-        if (usbMidi2.port == port && usbMidi2.isActive())
-        {
-            usbMidi2.SendData(msg);
-        }
-    }
-}
-void run()
-{
-    auto bank = config.current();
-    for (byte btnIdx = 0; btnIdx < 6; btnIdx++)
-    {
-        if (buttons[btnIdx].pressed())
-        {
-            drawRun();
-            auto msgs = bank->switches[btnIdx].msgs;
-            for (auto msgIdx = 0; msgIdx < 3; msgIdx++)
-            {
-                if (msgs[msgIdx].sendMidi())
-                {
-                    MIDI.send(msgs[msgIdx].getCmd(), msgs[msgIdx].data1, msgs[msgIdx].data2, msgs[msgIdx].getChannel() + 1);
-                }
-                if (msgs[msgIdx].sendUsb1())
-                {
-                    uint8_t msg[3] = {msgs[msgIdx].getStatus(), msgs[msgIdx].data1, msgs[msgIdx].data2};
-                    sendUsbMidi(0, msg);
-                }
-                if (msgs[msgIdx].sendUsb2())
-                {
-                    uint8_t msg[3] = {msgs[msgIdx].getStatus(), msgs[msgIdx].data1, msgs[msgIdx].data2};
-                    sendUsbMidi(1, msg);
-                }
-            }
-            config.currentSwitch = btnIdx;
-            sendSwitch(&(bank->switches[btnIdx]));
-        }
-    }
-}
-
-void updateButtons()
-{
-    for (auto btnIdx = 0; btnIdx < 6; btnIdx++)
-    {
-        buttons[btnIdx].update();
-    }
-    bankUpButton.update();
-    bankDownButton.update();
-}
-
-void nextBank()
-{
-    config.nextBank();
-    drawRun();
-    sendSwitch(&(config.current()->switches[config.currentSwitch]));
-}
-
-void prevBank()
-{
-    config.prevBank();
-    drawRun();
-    sendSwitch(&(config.current()->switches[config.currentSwitch]));
 }
