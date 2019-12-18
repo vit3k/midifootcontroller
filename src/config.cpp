@@ -6,17 +6,19 @@
 void Config::read()
 {
     preferences.begin("config");
-    currentBank = preferences.getUChar("currentBank");
+    currentBank = preferences.getUChar("currentBank", 0);
+    //Serial.printf("Current bank %d\n", currentBank);
     //currentBank = EEPROM.read(0);
-    for(auto i = 0; i < BANKSNUM; i++)
+    /*for(auto i = 0; i < BANKSNUM; i++)
     {
         Bank bank;
         for (auto j = 0; j < 6; j++)
         {
             memset(bank.switches[j].name, 0, 6);
-            sprintf(bank.switches[j].name, "t%d %d", i+1, j+1);
+            sprintf(bank.switches[j].name, "t%d %d  ", i+1, j+1);
+            printf("t%d %d", i+1, j+1);
             bank.switches[j].msgs[0].options = 0b00000000;
-            bank.switches[j].msgs[0].status = (1 << 4) | (i & 0x0F);
+            bank.switches[j].msgs[0].status = midi::ProgramChange | (i & 0x0F);
             bank.switches[j].msgs[0].data1 = j;
             bank.switches[j].msgs[0].data2 = 0;
             bank.switches[j].msgs[0].altData2 = 0;
@@ -34,7 +36,7 @@ void Config::read()
         char buf[16];
         sprintf(buf, "bank_%d", i);
         preferences.putBytes(buf, &bank, sizeof(Bank));
-    }
+    }*/
     readBank(currentBank);
 }
 Bank *Config::current()
@@ -69,6 +71,7 @@ void Config::readBank(uint8_t bankNo)
     char buf[16];
     sprintf(buf, "bank_%d", bankNo);
     preferences.getBytes(buf, &bank, sizeof(Bank));
+    //Serial.printf("Read bank %d, %s, %s, %s", bankNo, bank.switches[0].name, bank.switches[1].name, bank.switches[1].name);
 }
 
 void Config::saveSwitch(byte* data)
@@ -83,21 +86,15 @@ void Config::saveSwitch(byte* data)
     preferences.putBytes(buf, &bank, sizeof(Bank));
 
 }
-
+void Config::saveCurrentBank()
+{
+    char buf[16];
+    sprintf(buf, "bank_%d", currentBank);
+    preferences.putBytes(buf, &bank, sizeof(Bank));
+}
 midi::MidiType Msg::getCmd()
 {
-    uint8_t cmd = (status & 0x70) >> 4;
-    switch(cmd)
-    {
-        case 1:
-            return midi::ProgramChange;
-            break;
-        case 2:
-            return midi::ControlChange;
-            break;
-        default:
-            return midi::InvalidType;
-    }
+    return (midi::MidiType)(status & 0xF0);
 }
 uint8_t Msg::getChannel()
 {

@@ -9,6 +9,8 @@ private:
     char buffer[2][21];
     uint8_t row, col;
     bool changed = false;
+    bool cursorVisible = false;
+    uint8_t cursorRow, cursorCol;
 public:
     LCD(): lcd(5, 18, 19, 21, 22, 23) {}
     void begin();

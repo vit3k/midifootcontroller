@@ -22,6 +22,7 @@ class Button
 
   public:
     Button(uint8_t pin);
+    Button(uint8_t pin, uint8_t mode);
     void update();
     bool pressed();
     bool longpressed();

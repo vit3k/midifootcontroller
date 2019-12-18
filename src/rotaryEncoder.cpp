@@ -3,7 +3,7 @@
 int32_t RotaryEncoder::delta(byte multiplier) {
     //auto read = encoder.read();
     auto read = encoder.getCount();
-    auto d = ceil((read - lastRead)/4);
+    auto d = ceil((read - lastRead)/2);
     int32_t step = 0;
     if (d != 0)
     {

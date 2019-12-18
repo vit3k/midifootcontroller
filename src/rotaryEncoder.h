@@ -25,6 +25,8 @@ public:
         lastRead(0), tps(0), lastTpsValue(0), lastTpsTime(millis()) {
         ESP32Encoder::useInternalWeakPullResistors=true;
 	    encoder.clearCount();
+        pinMode(pin1, INPUT);
+        pinMode(pin2, INPUT);
         encoder.attachHalfQuad(pin1, pin2);
 
     }

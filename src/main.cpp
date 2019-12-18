@@ -9,24 +9,23 @@
 struct MidiSettings : public midi::DefaultSettings
 {
     static const long BaudRate = 115200;
+    //static const long BaudRate = 31250;
 };
 
-MIDI_CREATE_CUSTOM_INSTANCE(HardwareSerial, Serial, MIDI, MidiSettings);
+MIDI_CREATE_CUSTOM_INSTANCE(HardwareSerial, Serial2, MIDI, MidiSettings);
 
 Config config;
-Button buttons[6] = {Button(6), Button(7), Button(8), Button(15), Button(2), Button(0)};
+Button buttons[6] = {Button(13), Button(12), Button(14), Button(27), Button(26), Button(26)};
 MultiButton bankUpButton(&buttons[0], &buttons[1]);
 MultiButton bankDownButton(&buttons[1], &buttons[2]);
-RotaryEncoder encoder1(4, 16);
-//RotaryEncoder encoder2(11, 12);
-Button encoder1button(17);
-//Button encoder2button(13);
+RotaryEncoder encoder1(15, 33);
+Button encoder1button(4);
 
 LCD lcd;
 bool verbose = false;
-byte editSwitch = -1;
-byte editMsg = 0;
-byte editCurrentPos = 0;
+int8_t editSwitch = -1;
+int8_t editMsg = 0;
+int8_t editCurrentPos = 0;
 bool editCurrentActive = false;
 Switch editCurrentSwitch;
 
@@ -46,7 +45,7 @@ void prevBank();
 void setup()
 {
     MIDI.setHandleSystemExclusive(onSysex);
-    MIDI.turnThruOff();
+    //MIDI.turnThruOff();
     MIDI.begin(MIDI_CHANNEL_OMNI);
     Serial.begin(115200);
     lcd.begin();
@@ -77,8 +76,8 @@ void drawRun()
     {
         for (auto btnIdx = 0; btnIdx < 3; btnIdx++)
         {
-            lcd.cursorAt(row, btnIdx * 6);
-            lcd.print(bank->switches[row * 3 + btnIdx].name);
+            lcd.cursorAt(row, btnIdx * 7);
+            lcd.print("%s ", bank->switches[row * 3 + btnIdx].name);
         }
     }
 }
@@ -95,11 +94,17 @@ void drawEdit()
     {
         lcd.print("CC");
     }
+    else
+    {
+        lcd.print("EE");
+    }
 
     lcd.cursorAt(0, 3);
-    lcd.print("%2d %3d %3d %3d", msg.getChannel(), msg.data1, msg.data2, msg.altData2);
+    //lcd.print("%2u", msg.getChannel() + 1);
+    lcd.print("%2u %3u %3u %3u   ", msg.getChannel() + 1, msg.data1, msg.data2, msg.altData2);
     lcd.cursorAt(1, 0);
-    lcd.print("%d/5 %s SV CN", editMsg, editCurrentSwitch.name);
+    lcd.print("%d/5 %s SV CN    ", editMsg + 1, editCurrentSwitch.name);
+    //Serial.printf("editCurrentPos: %d\n", editCurrentPos);
     switch(editCurrentPos)
     {
         case 0:
@@ -129,10 +134,10 @@ void drawEdit()
             lcd.cursor(1, editCurrentPos - 2);
             break;
         case 12:
-            lcd.cursor(1, 12);
+            lcd.cursor(1, 11);
             break;
         case 13:
-            lcd.cursor(1, 15);
+            lcd.cursor(1, 14);
             break;
     }
     if (editCurrentActive)
@@ -143,7 +148,6 @@ void drawEdit()
     {
         lcd.noBlink();
     }
-
 }
 
 void draw()
@@ -178,7 +182,7 @@ void run()
                 editMsg = 0;
                 editCurrentPos = 0;
                 editCurrentActive = false;
-                memcpy(&editCurrentSwitch, &(bank->switches[btnIdx]), sizeof(Switch));
+                editCurrentSwitch = bank->switches[btnIdx];
                 draw();
             }
             else if (buttons[btnIdx].pressed())
@@ -187,7 +191,10 @@ void run()
                 auto msgs = bank->switches[btnIdx].msgs;
                 for (auto msgIdx = 0; msgIdx < 3; msgIdx++)
                 {
-                    MIDI.send(msgs[msgIdx].getCmd(), msgs[msgIdx].data1, msgs[msgIdx].data2, msgs[msgIdx].getChannel() + 1);
+                    if (msgs[msgIdx].getCmd() != midi::InvalidType)
+                    {
+                        MIDI.send(msgs[msgIdx].getCmd(), msgs[msgIdx].data1, msgs[msgIdx].data2, msgs[msgIdx].getChannel() + 1);
+                    }
                 }
                 config.currentSwitch = btnIdx;
                 sendSwitch(&(bank->switches[btnIdx]));
@@ -195,21 +202,38 @@ void run()
         }
     }
 }
-
+uint8_t clamp(int8_t value, int8_t delta, int8_t min, int8_t max)
+{
+    auto newValue = value + delta;
+    if (newValue < min)
+    {
+        newValue = max;
+    }
+    if (newValue > max)
+    {
+        newValue = min;
+    }
+    return newValue;
+}
 void edit()
 {
     if (encoder1button.pressed())
     {
+        //Serial.println("Button pressed");
         if (editCurrentPos == 13)
         {
             editSwitch = -1;
+            lcd.noCursor();
             draw();
             return;
         }
         else if (editCurrentPos == 12)
         {
-            //TODO: save
+            auto bank = config.current();
+            bank->switches[editSwitch] = editCurrentSwitch;
             editSwitch = -1;
+            config.saveCurrentBank();
+            lcd.noCursor();
             draw();
             return;
         }
@@ -220,10 +244,10 @@ void edit()
             return;
         }
     }
-
+    auto delta = -encoder1.delta();
     if (!editCurrentActive)
     {
-        if (encoder1.delta() > 0)
+        if ( delta > 0)
         {
             editCurrentPos++;
             if (editCurrentPos > 13)
@@ -232,7 +256,7 @@ void edit()
             }
             draw();
         }
-        else if (encoder1.delta() < 0)
+        else if (delta < 0)
         {
             editCurrentPos--;
             if (editCurrentPos < 0)
@@ -244,9 +268,88 @@ void edit()
     }
     else
     {
-        if (encoder1.delta() != 0)
+        if (delta != 0)
         {
-            //TODO: change value
+            switch(editCurrentPos) {
+                case 0:
+                {
+                    //Serial.printf("%d %d\n", editCurrentSwitch.msgs[editMsg].getCmd(), midi::ProgramChange);
+                    auto current = editCurrentSwitch.msgs[editMsg].getCmd();
+                    auto newCmd = midi::InvalidType;
+                    switch(current)
+                    {
+                        case midi::ProgramChange:
+                            if (delta > 0)
+                            {
+                                newCmd = midi::ControlChange;
+                            }
+                            else
+                            {
+                                newCmd = midi::InvalidType;
+                            }
+                            break;
+                        case midi::ControlChange:
+                            if (delta > 0)
+                            {
+                                newCmd = midi::InvalidType;
+                            }
+                            else
+                            {
+                                newCmd = midi::ProgramChange;
+                            }
+                            break;
+                        case midi::InvalidType:
+                            if (delta > 0)
+                            {
+                                newCmd = midi::ProgramChange;
+                            }
+                            else
+                            {
+                                newCmd = midi::ControlChange;
+                            }
+                            break;
+                    }
+                    editCurrentSwitch.msgs[editMsg].status = newCmd | editCurrentSwitch.msgs[editMsg].getChannel();
+                    break;
+                }
+                case 1:
+                    editCurrentSwitch.msgs[editMsg].status = editCurrentSwitch.msgs[editMsg].getCmd() | clamp(editCurrentSwitch.msgs[editMsg].getChannel(), delta, 0, 15);
+                    break;
+                case 2:
+                    editCurrentSwitch.msgs[editMsg].data1 = clamp(editCurrentSwitch.msgs[editMsg].data1, delta, 0, 127);
+                    break;
+                case 3:
+                    editCurrentSwitch.msgs[editMsg].data2 = clamp(editCurrentSwitch.msgs[editMsg].data2, delta, 0, 127);
+                    break;
+                case 4:
+                    editCurrentSwitch.msgs[editMsg].altData2 = clamp(editCurrentSwitch.msgs[editMsg].altData2, delta, 0, 127);
+                    break;
+                case 5:
+                    editMsg = clamp(editMsg, delta, 0, 4);
+                    break;
+                case 6:
+                case 7:
+                case 8:
+                case 9:
+                case 10:
+                case 11:
+                    auto currentChar = editCurrentSwitch.name[editCurrentPos - 6];
+                    currentChar+=delta;
+                    if (currentChar > 90)
+                    {
+                        currentChar = 32;
+                    }
+                    else if (currentChar == 33)
+                    {
+                        currentChar = 48;
+                    }
+                    else if (currentChar < 48)
+                    {
+                        currentChar = 32;
+                    }
+                    editCurrentSwitch.name[editCurrentPos - 6] = currentChar;
+                    break;
+            }
             draw();
         }
     }
@@ -260,6 +363,7 @@ void updateButtons()
     }
     bankUpButton.update();
     bankDownButton.update();
+    encoder1button.update();
 }
 
 void nextBank()

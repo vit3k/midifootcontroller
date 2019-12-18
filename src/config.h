@@ -26,7 +26,7 @@ struct Msg
 
 struct Switch
 {
-    char name[6];
+    char name[7];
     Msg msgs[5];
     uint8_t loops;
 };
@@ -49,5 +49,6 @@ class Config
     void prevBank();
     void readBank(uint8_t bankNo);
     void saveSwitch(byte* data);
+    void saveCurrentBank();
 };
 #endif
