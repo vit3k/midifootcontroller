@@ -23,7 +23,7 @@ public:
 
     RotaryEncoder(uint8_t pin1, uint8_t pin2): //encoder(Encoder(pin1, pin2)),
         lastRead(0), tps(0), lastTpsValue(0), lastTpsTime(millis()) {
-        ESP32Encoder::useInternalWeakPullResistors=true;
+        ESP32Encoder::useInternalWeakPullResistors=UP;
 	    encoder.clearCount();
         pinMode(pin1, INPUT);
         pinMode(pin2, INPUT);
