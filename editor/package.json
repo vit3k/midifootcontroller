@@ -37,7 +37,7 @@
     "not op_mini all"
   ],
   "devDependencies": {
-    "electron": "^4.1.0",
+    "electron": "^11.5.0",
     "electron-builder": "^20.39.0",
     "typescript": "^3.3.3333"
   }
